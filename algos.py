@@ -2,7 +2,12 @@ import pandas as pd
 import numpy as np
 
 def deltaR(a, b):
-    return np.sqrt((a['eta'] - b['eta'])**2 + (a['phi'] - b['phi'])**2)
+    dEta2 = (a['eta'] - b['eta'])**2
+    dPhi = abs(a['phi'] - b['phi'])
+    wrdPhi = 2 * np.pi - dPhi # wrapped around
+    dPhi = np.minimum(dPhi, wrdPhi)
+    dPhi2 = dPhi**2
+    return np.sqrt(dEta2 + dPhi2)
 
 def seedConeJetsAllEvents(events, cluster_distance=0.4, seed_threshold=0., jet_threshold = 0., pt_weighted_pos=True):
     jets = seedConeJets(events.loc[0],
