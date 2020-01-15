@@ -11,7 +11,8 @@ def loadFromFile(filename,writeToh5=False):
     phi = f[p4_tree + '.fPhi'].array()
 
     index = np.array([i for i, ev in enumerate(pt) for j in range(len(ev))]).flatten()
-    events = pd.DataFrame({'i' : index, 'pt' : pt.flatten(), 'eta' : eta.flatten(), 'phi' : phi.flatten()})
+    jindex = np.array([i for ev in pt for i in range(len(ev))]).flatten()
+    events = pd.DataFrame({'i' : index, 'j' : jindex, 'pt' : pt.flatten(), 'eta' : eta.flatten(), 'phi' : phi.flatten()})
     events.set_index('i', inplace=True, drop=True)
 
     ak4_tree = 'Events/recoPFJets_ak4PFL1Puppi__RESP./recoPFJets_ak4PFL1Puppi__RESP.obj'
