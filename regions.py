@@ -63,4 +63,3 @@ eta_edges = [-3, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3]
 phi_edges = np.linspace(-np.pi, np.pi, 10)
 
 PFRegions = np.array([[Region(eta_edges[i], eta_edges[i+1], phi_edges[j], phi_edges[j+1]) for j in range(len(phi_edges) - 1)] for i in range(len(eta_edges) - 1)])
-

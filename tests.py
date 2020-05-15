@@ -1,7 +1,13 @@
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
+
+colors = ['#DA291CFF','#56A8CBFF','#53A567FF',"#E95C20FF", "#006747FF", "#4F2C1DFF"]
+
+kwargs = dict(alpha=1.0, density=False, stacked=False, hatch='//',linewidth=2, histtype='step')
 
 def getPairs(ref,new):
     appended_data = []
@@ -24,51 +30,69 @@ def getPairs(ref,new):
 def getResiduals(ref,new):
     return  (ref - new) / ref
 
-def drawDataframe(resultPt,outname,xlabel,ylabel='Number of jets',bins=100,range=(-0.05,0.05),outpath='./'):
-    resultPt.plot.hist(bins=bins,range=range,color='black',label='$\sigma$ (mean = %.3f)'%np.mean(resultPt),histtype='step', linewidth=2, facecolor='darkseagreen', hatch='/', edgecolor='k',fill=True)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.legend(loc='upper right')
-    plt.savefig(outpath+outname+".png")
+def drawDataFrames(dfs,labels,colors,bins,range,xlabel,ylabel,outpath,outname, log=False):
     plt.clf()
-
-def drawMultipleDataFrames(dfs,outname,legs,xlabel,ylabel='Number of jets',bins=100,log=False,outpath='./'):
+    fig,ax = plt.subplots()
+    plt.grid(True)
     for i,df in enumerate(dfs):
         if i == 0:
-            ax = df.plot.hist(bins=bins,color='darkseagreen',label=legs[i]+' $\sigma$ (mean = %.3f)'%np.mean(df),histtype='step', linewidth=2,fill=False,alpha=0.5)
-
+            ax = df.plot.hist(bins=bins,range=range,edgecolor=colors[i],label=labels[i],**kwargs)
         else:
-            df.plot.hist(ax=ax,bins=bins,color='orangered',label=legs[i]+' $\sigma$ (mean = %.3f)'%np.mean(df),histtype='step', linewidth=2,fill=False,alpha=0.5)
+            df.plot.hist(ax=ax,bins=bins,range=range,edgecolor=colors[i],label=labels[i],**kwargs)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
+   
+    plt.legend(loc='upper right')
+    plt.legend(prop={'size':10}, frameon=False)
+    #plt.show()
+    axis = plt.gca()
+    ymin, ymax = axis.get_ylim()
+    ax.set_ylim(0, ymax*2.5)
+    ax.autoscale(tight=False)
     if log:
         plt.yscale('log')
-    plt.legend(loc='upper right')
-    plt.autoscale()
+        ax.set_ylim(0.1, ymax * 100)
     plt.savefig(outpath+outname+".png")
+    plt.savefig(outpath+outname+".pdf")
     plt.clf()
 
-def compareCollections(refCollection,newCollection,outpath="/eos/home-t/thaarres/www/L1T_phase2_PF_jets/"):
+def compareCollections(refCollection,newCollections=[],baseCollectionName='AK4',newCollectionNames=[],outpath="/eos/home-t/thaarres/www/L1T_phase2_PF_jets/"):
 
     refCollection_event = refCollection.groupby(refCollection.index)
-    newCollection_event = newCollection.groupby(newCollection.index)
-
-    sigmaN = (refCollection_event.size()- newCollection_event.size())/refCollection_event.size()
-
-    drawDataframe(sigmaN,'residuals_Njet','$Njets_{ref}-Njets_{new}/Njets_{ref}$', outpath=outpath)
-    drawMultipleDataFrames ([refCollection_event.size(),newCollection_event.size() ],'Njets',['AK4','Seed'],'$N_{jets}$',outpath=outpath)
-    matchedJetPairs = getPairs(refCollection_event,newCollection_event)
-
+    newCollections_event = []
+    matchedJetPairs = []
+    nJetsResiduals = []
+    labels  = []
+    for i,newCollection in enumerate(newCollections):
+      newCollection_event = newCollection.groupby(newCollection.index)  
+      sigmaN = (refCollection_event.size()- newCollection_event.size())/refCollection_event.size()
+      newCollections_event.append(newCollection_event)
+      nJetsResiduals.append(sigmaN)
+      labels.append('%s <m> = %.3f)'%(newCollectionNames[i],np.mean(sigmaN)))
+      
+      matchedJetPairs.append(getPairs(refCollection_event,newCollection_event))
+    drawDataFrames(nJetsResiduals, labels, colors = colors,bins=100,range=(-.25,.25),xlabel='$N_{jets}^{ref}-N_{jets}^{new}/N_{jets}^{ref}$',ylabel='Number of jets',outpath=outpath, outname="nJets_residuals",log=True)
+    drawDataFrames([refCollection_event.size()]+[i.size() for i  in newCollections_event], [baseCollectionName]+newCollectionNames, colors = colors,bins=20,range=(0.,20.),xlabel='$N_{jets}$',ylabel='Number of jets',outpath=outpath, outname="nJets")
+    
     columns = refCollection.columns
     fancynames = {'eta':'$\eta$', 'phi':'$\phi$','pt':'$p_T$'}
     for col in columns:
         name = fancynames[col]
         log = False
-        if col == 'pt':
-            log == True
-        df = getResiduals(matchedJetPairs['ref_'+col],matchedJetPairs['new_'+col])
-        drawDataframe(df,'residuals_'+col,'$%s_{ref}-%s_{new}/%s_{ref}$'%(col,col,col),outpath=outpath)
-        drawMultipleDataFrames ([matchedJetPairs['ref_'+col],matchedJetPairs['new_'+col] ],col,['AK4','Seed'],name,log=log,outpath=outpath)
+        x_range=(-3.2,3.2)
+        bins = 20
+        if col.find('pt')!=-1:
+            log = True
+            x_range = (0,500)
+            bins = 50
+        dfs=[]
+        labels = []
+        for i,matchedJetPair in enumerate(matchedJetPairs):
+          residuals=getResiduals(matchedJetPair['ref_'+col],matchedJetPair['new_'+col])
+          dfs.append(residuals)
+          labels.append('%s (mean = %.3f)'%(newCollectionNames[i],np.mean(residuals)))
+        drawDataFrames(dfs,labels,colors = colors,bins=50,range=(-.25,.25),xlabel='%s$^{ref}$-%s$^{new}$/%s$^{ref}$'%(fancynames[col],fancynames[col],fancynames[col]),ylabel='Number of jets',outpath=outpath, outname="%s_residuals"%col,log=True)
+        drawDataFrames( [matchedJetPairs[0]['ref_'+col]]+[i['new_'+col] for i  in matchedJetPairs],[baseCollectionName]+newCollectionNames, colors = colors,bins=bins,range=x_range,xlabel=name,ylabel='Number of jets',outpath=outpath, outname="%s"%col,log=log)
 
     print("Inspect histograms at {}".format(outpath))
 
